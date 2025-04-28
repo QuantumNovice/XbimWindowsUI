@@ -9,8 +9,8 @@
         <Grid >
 
             
-            <TextBlock HorizontalAlignment="Left" Margin="10,10,0,0" TextWrapping="Wrap" Text="xBIM Xplorer" VerticalAlignment="Top" FontSize="24" />
-            <TextBlock Margin="10,42,0,0" TextWrapping="Wrap">This application is a demonstrator of the xBIM toolkit.</TextBlock>
+            <TextBlock HorizontalAlignment="Left" Margin="10,10,0,0" TextWrapping="Wrap" Text="ITaLab Rule Checker" VerticalAlignment="Top" FontSize="24" />
+            <TextBlock Margin="10,42,0,0" TextWrapping="Wrap">This application is for apply rule checks using IFC.</TextBlock>
             <TabControl Margin="10,65,10,10">
                 <TabItem Header="Application">
                     <StackPanel Margin="10" >
@@ -20,15 +20,15 @@
                             xBIM license is compatible with commercial environments.
                         </TextBlock>
                         <TextBlock Margin="0,3" >
-                            <Hyperlink RequestNavigate="Link_RequestNavigate" NavigateUri="https://github.com/xBimTeam/XbimEssentials/blob/master/LICENCE.md">
-					            <TextBlock Text="https://github.com/xBimTeam/XbimEssentials/blob/master/LICENCE.md"/>
+                            <Hyperlink RequestNavigate="Link_RequestNavigate" NavigateUri="http://italab.khu.ac.kr/">
+					            <TextBlock Text="http://italab.khu.ac.kr/"/>
 				            </Hyperlink>
                         </TextBlock>
                         <TextBlock TextWrapping="Wrap" Margin="0,3" Text="{Binding AppVersion}" />
                         <TextBlock TextWrapping="Wrap" Margin="0,3" Text="{Binding FileVersion}" />
                         <TextBlock Margin="0,3" >
                             <Hyperlink RequestNavigate="Link_RequestNavigate" NavigateUri="https://github.com/xbimteam">
-					            <TextBlock Text="https://github.com/xbimteam"/>
+					            <TextBlock Text="https://github.com/QuantumNovice"/>
 				            </Hyperlink>
                         </TextBlock>
                     </StackPanel>

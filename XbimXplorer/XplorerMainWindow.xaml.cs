@@ -47,6 +47,20 @@ using Serilog.Events;
 using Xbim.IO;
 using Xbim.Geometry.Engine.Interop;
 using System.Windows.Media;
+using Xbim.Ifc4.ElectricalDomain;
+using System.Runtime.InteropServices;
+using System.Windows.Media.Media3D;
+using static System.Net.Mime.MediaTypeNames;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement.Tab;
+using System.Windows.Documents;
+using System.Xml.Linq;
+
+
+using Word = Microsoft.Office.Interop.Word;
+
+
+
+
 
 #endregion
 
@@ -57,7 +71,10 @@ namespace XbimXplorer
     /// </summary>
     public partial class XplorerMainWindow : IXbimXplorerPluginMasterWindow, INotifyPropertyChanged
     {
-        private BackgroundWorker _loadFileBackgroundWorker;
+
+		public ObservableCollection<Item> Items { get; set; }
+
+		private BackgroundWorker _loadFileBackgroundWorker;
         /// <summary>
         /// Used for the creation of a new federation file
         /// </summary>
@@ -70,8 +87,9 @@ namespace XbimXplorer
         /// Currently supoorts the export function for Wexbim
         /// </summary>
         public static RoutedCommand OpenExportWindowCmd = new RoutedCommand();
+		public static RoutedCommand SetupProjectCmd = new RoutedCommand();
 
-        private string _temporaryXbimFileName;
+		private string _temporaryXbimFileName;
 
         private string _openedModelFileName;
 
@@ -93,17 +111,19 @@ namespace XbimXplorer
         public string GetOpenedModelFileName()
         {
             return _openedModelFileName;
+
         }
 
         private void SetOpenedModelFileName(string ifcFilename)
         {
             _openedModelFileName = ifcFilename;
+
             // try to update the window title through a delegate for multithreading
             Dispatcher.BeginInvoke(new Action(delegate
             {
                 Title = string.IsNullOrEmpty(ifcFilename)
-                    ? "Xbim Xplorer" :
-                    "Xbim Xplorer - [" + ifcFilename + "]";
+                    ? "ITalab Rule Checker" :
+					"ITalab Rule Checker - [" + ifcFilename + "]";
             }));
         }
 
@@ -146,7 +166,32 @@ namespace XbimXplorer
 
             InitializeComponent();
 
-            PreventPluginLoad = preventPluginLoad;
+			// main code
+			CommandBindings.Add(new CommandBinding(
+				SetupProjectCmd,
+				SetupProject_Executed,
+				SetupProject_CanExecute));
+
+
+
+			Items = new ObservableCollection<Item>
+			{
+				new Item { Name = "Check Wi-Fi AP", IsChecked = false },
+				new Item { Name = "Check AP Simulation Data", IsChecked = false },
+				new Item { Name = "Electrical Boxes Check", IsChecked = false },
+				new Item {Name = "Disconnected Cable Check", IsChecked=false},
+				new Item {Name = "Check Power Storage", IsChecked=false},
+				new Item {Name = "Elevator Check", IsChecked=false},
+				new Item {Name = "Transformer Check", IsChecked=false},
+				new Item {Name = "Weather Proof Receptacle Check", IsChecked=false},
+				new Item {Name = "PV Inverter Check", IsChecked=false},
+				new Item {Name = "Disconnect Switch Check", IsChecked=false},
+
+			};
+
+			checkedListBox1.ItemsSource = Items;
+
+			PreventPluginLoad = preventPluginLoad;
 
             // initialise the internal elements of the UI that behave like plugins
             EvaluateXbimUiType(typeof(IfcValidation.ValidationWindow), true);
@@ -506,7 +551,7 @@ namespace XbimXplorer
             if (args.ProgressPercentage < 0 || args.ProgressPercentage > 100)
                 return;
 
-            Application.Current.Dispatcher.BeginInvoke(
+            System.Windows.Application.Current.Dispatcher.BeginInvoke(
                 DispatcherPriority.Send,
                 new Action(() =>
                 {
@@ -622,10 +667,22 @@ namespace XbimXplorer
             dlg.ShowDialog(this);
         }
 
-        /// <summary>
-        /// Tidies up any open files and closes any open models
-        /// </summary>
-        private void CloseAndDeleteTemporaryFiles()
+		private void SetupProject_CanExecute(object sender, CanExecuteRoutedEventArgs e)
+		{
+			e.CanExecute = true;
+		}
+
+		private void SetupProject_Executed(object sender, ExecutedRoutedEventArgs e)
+		{
+			ProjectSetup.ProjectSetup window = new ProjectSetup.ProjectSetup();
+			window.Show();
+
+		}
+
+		/// <summary>
+		/// Tidies up any open files and closes any open models
+		/// </summary>
+		private void CloseAndDeleteTemporaryFiles()
         {
             try
             {
@@ -885,6 +942,7 @@ namespace XbimXplorer
             _camChanged = false;
             DrawingControl.Viewport.Camera.Changed += Camera_Changed;
             DrawingControl.ZoomSelected();
+
             DrawingControl.Viewport.Camera.Changed -= Camera_Changed;
             if (!_camChanged)
                 DrawingControl.ClipBaseSelected(0.15);
@@ -1223,5 +1281,305 @@ namespace XbimXplorer
             
             
         }
+
+		private void simpleListBox_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+		{
+			if (simpleListBox.SelectedItem is ListBoxItem selectedItem)
+			{
+				
+				HighlightAndZoomToElement(DrawingControl.Model, selectedItem.Content.ToString());
+			}
+		}
+
+		public void report(string message, Color color = default)
+		{
+			// If color is default (not passed), set it to black
+			if (color == default)
+			{
+				color = Colors.Black;
+			}
+
+			ListBoxItem lbitem1 = new ListBoxItem
+			{
+				Content = message,
+				Foreground = new SolidColorBrush(color) // Set text color
+			};
+
+
+			simpleListBox.Items.Add(lbitem1);
+			simpleListBox.ScrollIntoView(lbitem1);
+		}
+
+
+		public void HighlightAndZoomToElement(IfcStore model, string globalId)
+		{
+			// Find the IFC element by GlobalId
+			var element = model.Instances.FirstOrDefault<IIfcProduct>(e => e.GlobalId == globalId);
+
+			DrawingControl.SelectedEntity = element;
+			DrawingControl.SelectionColor = Colors.Purple;
+			DrawingControl.ZoomSelected();
+		}
+
+		private void Button_Click(object sender, RoutedEventArgs e)
+		{
+			// run the rules
+			// Create a list to store the checked items
+			List<string> checkedItemsList = new List<string>();
+
+		
+			
+			var mod = ModelProvider.ObjectInstance as IfcStore;
+
+			if (mod == null | !(mod.Instances.Count > 0))
+			{
+				ListBoxItem item = new ListBoxItem
+				{
+					Content = "No model loaded",
+					Foreground = new SolidColorBrush(Colors.Red) // Set text color to red
+				};
+
+				simpleListBox.Items.Add(item);
+
+				return;
+			}
+			else if (mod.Instances.Count > 0)
+			{
+
+				// Iterate through all checked items in the CheckedListBox
+				var checkedItems = Items.Where(item => item.IsChecked);
+				foreach (var item in checkedItems)
+				{
+
+
+					ListBoxItem lbitem = new ListBoxItem
+					{
+						Content = $"Running rule : {item.Name}",
+						Foreground = new SolidColorBrush(Colors.Blue) // Set text color to red
+					};
+
+					simpleListBox.Items.Add(lbitem);
+					
+					switch (item.Name)
+					{
+						case "Check Wi-Fi AP":
+							// check Wi-Fi Devices
+							var found = RuleChecker.check_wifi_ap(mod);
+
+							if (found == RuleCheckResult.Fail)
+							{
+								// report found wifi devices
+								lbitem = new ListBoxItem
+								{
+									Content = $"No Wi-Fi devices found",
+									Foreground = new SolidColorBrush(Colors.Red) // Set text color to red
+								};
+
+								simpleListBox.Items.Add(lbitem);
+
+							}
+							else
+							{
+								// no wifi devices found
+								lbitem = new ListBoxItem
+								{
+									Content = $"Wi-Fi Devices Found",
+									Foreground = new SolidColorBrush(Colors.Black) // Set text color to red
+								};
+
+								simpleListBox.Items.Add(lbitem);
+							}
+							break;
+						case "Check AP Simulation Data":
+							var foundWalls = mod.Instances.OfType<IIfcWall>().ToList();
+
+							if (foundWalls.Count > 0 && RuleChecker.check_wifi_ap(mod) == RuleCheckResult.Pass)
+							{
+								report("AP Simulation Present", Colors.Green);
+							}
+							else
+							{
+								report("AP Similation data not sufficient", Colors.Red);
+							}
+							break;
+
+
+						case "Electrical Boxes Check":
+
+							RuleCheckResult ele_dist_res = RuleChecker.valdiate_electric_distribution(mod);
+
+							if (ele_dist_res == RuleCheckResult.Pass)
+							{
+								report("Electric Distribution Check Passed", Colors.Green);
+							}
+							else if (ele_dist_res == RuleCheckResult.Fail)
+							{
+								report("Electric Distribution Check Failed", Colors.Red);
+							}
+							else
+							{
+								report("Electric Distribution Check Not Applicable", Colors.Blue);
+							}
+							break;
+
+						case "Disconnected Cable Check":
+							var val = RuleChecker.disconnected_flow_segements(mod);
+							if (RuleChecker.is_flow_segment_present(mod))
+							{
+								if (val.Count > 0)
+								{
+									report("Disconnected Cable Check Failed", Colors.Red);
+									foreach (var _item in val)
+									{
+										report(_item, Colors.Red);
+									}
+									HighlightAndZoomToElement(mod, val.First());
+									
+								}
+								else
+								{
+									report("Disconnected Cable Check Passed", Colors.Green);
+								}
+							}
+
+							else
+							{
+								report("Disconnected Cable Check Not Applicable", Colors.Blue);
+							}
+							
+							
+
+							break;
+
+						case "Check Power Storage":
+							var val1 = RuleChecker.check_battery(mod);
+							if (val1 is RuleCheckResult.Fail)
+							{
+								report("Power Storage Check Failed", Colors.Red);
+
+							}
+							else
+							{
+								report("Power Storage Check Passed", Colors.Green);
+							}
+							break;
+
+						case "Elevator Check":
+							val1 = RuleChecker.elevator_check(mod);
+							if (val1 is RuleCheckResult.Fail)
+							{
+								report("Elevator Check Failed", Colors.Red);
+
+							}
+							else
+							{
+								report("Elevator Check Passed", Colors.Green);
+							}
+							break;
+
+						case "Transformer Check":
+							val1 = RuleChecker.check_transformer(mod);
+							if (val1 is RuleCheckResult.Fail)
+							{
+								report("Transformer Check Failed", Colors.Red);
+
+							}
+							else
+							{
+								report("Transformer Check Passed", Colors.Green);
+							}
+							break;
+
+						case "Weather Proof Receptacle Check":
+							val1 = RuleChecker.check_weather_proof_receptacle(mod);
+							if (val1 is RuleCheckResult.Fail)
+							{
+								report("Weather Proof Receptacle Check Failed", Colors.Red);
+
+							}
+							else
+							{
+								report("Weather Proof Receptacle Check Passed", Colors.Green);
+							}
+							break;
+
+						case "PV Inverter Check":
+							val1 = RuleChecker.check_pv_inverter(mod);
+							if (val1 is RuleCheckResult.Fail)
+							{
+								report("PV Inverter Check Failed", Colors.Red);
+
+							}
+							else
+							{
+								report("PV Inverter Check Passed", Colors.Green);
+							}
+							break;
+						case "Disconnect Switch Check":
+							val1 = RuleChecker.check_disconnect_switch(mod);
+							if (val1 is RuleCheckResult.Fail)
+							{
+								report("Disconnect Switch Check Failed", Colors.Red);
+
+							}
+							else
+							{
+								report("Disconnect Switch Check Passed", Colors.Green);
+							}
+							break;
+
+						default:
+							report("No rule selected to run.", Colors.Green);
+							break;
+
+
+
+
+					}
+
+                    string filePath = @"D:\Sample.docx";
+                    Word.Application wordApp = new Word.Application();
+                    Word.Document doc = wordApp.Documents.Add();
+
+                    // Add text
+                    Word.Paragraph para = doc.Paragraphs.Add();
+                    para.Range.Text = "Hello, this is a Word document created with Interop.";
+
+
+                    string res = "Rule Checker Result\n";
+                    // write to docx
+                    foreach (var it in simpleListBox.Items)
+					{
+						string report = ((ListBoxItem)it).Content.ToString();
+                        res+= report + "\n";
+
+
+                    }
+                    para.Range.Text = res;
+                    // Save the document
+                    doc.SaveAs2(filePath);
+                    doc.Close();
+                    wordApp.Quit();
+
+
+
+                }
+			}
+			else
+			{
+				report("No rule selected to run.", Colors.Green);
+			}
+				
+
+
+
+			
+		}
 	}
+	public class Item
+	{
+		public string Name { get; set; }
+		public bool IsChecked { get; set; }
+	}
+
 }
